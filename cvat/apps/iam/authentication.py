@@ -43,6 +43,8 @@ class IAPAuthentication(BaseAuthentication):
     """
 
     IAP_HEADER = "HTTP_X_GOOG_IAP_JWT_ASSERTION"
+    IAP_CERTS_URL = "https://www.gstatic.com/iap/verify/public_key"
+    IAP_ISSUER = "https://cloud.google.com/iap"
 
     def authenticate(self, request):
         token = request.META.get(self.IAP_HEADER)
@@ -50,8 +52,10 @@ class IAPAuthentication(BaseAuthentication):
             return None
 
         claims = self._verify_iap_jwt(token)
+
         email = claims.get("email", "")
         if not email:
+            logger.warning("IAP JWT verified but contains no email claim")
             raise exceptions.AuthenticationFailed("IAP JWT contains no email claim.")
 
         user = self._get_or_create_user(email)
@@ -63,29 +67,27 @@ class IAPAuthentication(BaseAuthentication):
     @staticmethod
     def _verify_iap_jwt(token: str) -> dict:
         """Verify the IAP-signed JWT and return its claims."""
-        try:
-            import google.auth.transport.requests
-            import google.oauth2.id_token
+        from google.auth.transport import requests as google_requests
+        from google.oauth2 import id_token
 
-            http_request = google.auth.transport.requests.Request()
-            audience = settings.IAM_IAP_AUDIENCE
-            if not audience:
-                raise exceptions.AuthenticationFailed(
-                    "IAM_IAP_AUDIENCE is not configured. "
-                    "Set it to the full IAP backend service path."
-                )
-            claims = google.oauth2.id_token.verify_token(
-                token,
-                http_request,
-                audience=audience,
+        audience = settings.IAM_IAP_AUDIENCE
+        if not audience:
+            raise exceptions.AuthenticationFailed(
+                "IAM_IAP_AUDIENCE is not configured."
             )
-        except Exception as exc:
+
+        try:
+            return id_token.verify_token(
+                token,
+                google_requests.Request(),
+                audience=audience,
+                certs_url=IAPAuthentication.IAP_CERTS_URL,
+            )
+        except ValueError as exc:
             logger.warning("IAP JWT verification failed: %s", exc)
             raise exceptions.AuthenticationFailed(
                 f"IAP JWT verification failed: {exc}"
             ) from exc
-
-        return claims
 
     @staticmethod
     def _get_or_create_user(email: str):
@@ -95,7 +97,6 @@ class IAPAuthentication(BaseAuthentication):
             defaults={"email": email},
         )
         if created:
-            # post_save signal in signals.py assigns the correct group
             logger.info("Created new IAP user: %s", email)
         return user
 
