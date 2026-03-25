@@ -99,15 +99,11 @@ services:
       CVAT_ANALYTICS: 1
       CVAT_BASE_URL:
       ONE_RUNNING_JOB_IN_QUEUE_PER_USER:
-      # GCP IAP authentication — uncomment and set these when IAM_TYPE=IAP.
-      # IAM_TYPE defaults to "BASIC" (username/password); set to "IAP" to enable
-      # Identity-Aware Proxy authentication.
-      #
-      # IAM_TYPE: IAP
-      # IAM_IAP_AUDIENCE: /projects/PROJECT_NUMBER/global/backendServices/BACKEND_SERVICE_ID
-      #
+      # GCP IAP authentication.
       # Role mapping is structured config — set IAM_IAP_ROLE_MAP in
       # cvat/settings/production.py instead of as an env var.
+      IAM_TYPE: IAP
+      # IAM_IAP_AUDIENCE: /projects/PROJECT_NUMBER/global/backendServices/BACKEND_SERVICE_ID
     command: init run server
     labels:
       traefik.enable: "true"
