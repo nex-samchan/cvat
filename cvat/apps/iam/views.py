@@ -17,7 +17,7 @@ from django.contrib.auth import login as auth_login
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.views.decorators.http import etag as django_etag
 from drf_spectacular.contrib.rest_auth import get_token_serializer_class
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiTypes
 from rest_framework import status, views
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from rest_framework.permissions import AllowAny
@@ -114,6 +114,7 @@ class RegisterViewEx(RegisterView):
         return user
 
 
+@extend_schema(exclude=True)
 class IAPLoginView(views.APIView):
     """
     Login endpoint for GCP IAP mode.
@@ -124,6 +125,9 @@ class IAPLoginView(views.APIView):
 
     Accepts GET or POST — no credentials are required; IAP has already
     authenticated the user before the request reaches this endpoint.
+
+    Excluded from the OpenAPI schema so the frontend detects
+    isBasicLoginEnabled=false and hides the username/password form.
     """
 
     permission_classes = [AllowAny]
