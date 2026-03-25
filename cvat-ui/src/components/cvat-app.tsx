@@ -73,6 +73,7 @@ import showPlatformNotification, {
 } from 'utils/platform-checker';
 import '../styles.scss';
 import appConfig from 'config';
+const { IS_IAP_AUTH } = appConfig;
 import EventRecorder from 'utils/event-recorder';
 import { authQuery } from 'utils/auth-query';
 import CVATMarkdown from './common/cvat-markdown';
@@ -594,6 +595,14 @@ class CVATApplication extends React.PureComponent<CVATAppProps & RouteComponentP
                             </Layout>
                         </ShortcutsContextProvider>
                     </GlobalErrorBoundary>
+                );
+            }
+
+            if (IS_IAP_AUTH) {
+                // IAP handles authentication — show a spinner while the backend
+                // establishes the session. The user should be logged in momentarily.
+                return (
+                    <Spin size='large' fullscreen className='cvat-spinner' tip='Signing in via IAP...' />
                 );
             }
 

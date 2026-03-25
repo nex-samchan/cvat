@@ -13,6 +13,29 @@ def register_groups(sender, **kwargs):
         Group.objects.get_or_create(name=role)
 
 
+def _resolve_iap_role(email: str) -> str:
+    """
+    Walk IAM_IAP_ROLE_MAP top-to-bottom and return the first matching role.
+
+    Supported patterns (evaluated in order):
+      "user@example.com"  — exact email match
+      "*@example.com"     — all addresses on a domain
+      "*"                 — catch-all
+
+    Returns IAM_DEFAULT_ROLE if no entry matches.
+    """
+    for pattern, role in getattr(settings, "IAM_IAP_ROLE_MAP", []):
+        if pattern == email:
+            return role
+        if pattern.startswith("*@"):
+            domain = pattern[2:]
+            if email.split("@")[-1] == domain:
+                return role
+        if pattern == "*":
+            return role
+    return settings.IAM_DEFAULT_ROLE
+
+
 if settings.IAM_TYPE == "BASIC":
 
     def create_user(sender, instance, created: bool, raw: bool, **kwargs):
@@ -60,6 +83,21 @@ elif settings.IAM_TYPE == "LDAP":
         user.save()
         user.groups.set(user_groups)
 
+elif settings.IAM_TYPE == "IAP":
+
+    def create_user(sender, instance, created: bool, raw: bool, **kwargs):
+        if not created or raw:
+            return
+
+        role = _resolve_iap_role(instance.email)
+        db_group = Group.objects.get(name=role)
+        instance.groups.add(db_group)
+
+        if role == settings.IAM_ADMIN_ROLE:
+            instance.is_staff = True
+            instance.is_superuser = True
+            instance.save(update_fields=["is_staff", "is_superuser"])
+
 
 def register_signals(app_config):
     post_migrate.connect(register_groups, app_config, dispatch_uid=__name__ + ".register_groups")
@@ -74,3 +112,6 @@ def register_signals(app_config):
         django_auth_ldap.backend.populate_user.connect(
             create_user, dispatch_uid=__name__ + ".create_user"
         )
+    elif settings.IAM_TYPE == "IAP":
+        # Assign role from IAM_IAP_ROLE_MAP whenever a new IAP user is created.
+        post_save.connect(create_user, sender=User, dispatch_uid=__name__ + ".create_user")

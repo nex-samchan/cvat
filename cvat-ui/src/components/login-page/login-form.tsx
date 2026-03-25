@@ -10,6 +10,7 @@ import Form from 'antd/lib/form';
 import Button from 'antd/lib/button';
 import Input from 'antd/lib/input';
 import { Col, Row } from 'antd/lib/grid';
+import Spin from 'antd/lib/spin';
 import Title from 'antd/lib/typography/Title';
 import Text from 'antd/lib/typography/Text';
 import Icon from '@ant-design/icons';
@@ -20,6 +21,7 @@ import {
 import CVATSigningInput, { CVATInputType } from 'components/signing-common/cvat-signing-input';
 import { CombinedState } from 'reducers';
 import { useAuthQuery, usePlugins } from 'utils/hooks';
+import appConfig from 'config';
 
 export interface LoginData {
     credential: string;
@@ -38,6 +40,21 @@ function LoginFormComponent(props: Props): JSX.Element {
     const {
         fetching, onSubmit, renderResetPassword, renderRegistrationComponent, renderBasicLoginComponent,
     } = props;
+
+    if (appConfig.IS_IAP_AUTH) {
+        return (
+            <div className='cvat-login-form-wrapper'>
+                <Col>
+                    <Title level={2}>Signing in</Title>
+                </Col>
+                <Spin tip='Authenticating via IAP...' />
+                <Text type='secondary'>
+                    Authentication is managed by your organization&apos;s Identity-Aware Proxy.
+                    You will be redirected automatically.
+                </Text>
+            </div>
+        );
+    }
 
     const authQuery = useAuthQuery();
     const [form] = Form.useForm();
