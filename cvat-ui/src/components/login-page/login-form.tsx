@@ -10,6 +10,7 @@ import Form from 'antd/lib/form';
 import Button from 'antd/lib/button';
 import Input from 'antd/lib/input';
 import { Col, Row } from 'antd/lib/grid';
+import Spin from 'antd/lib/spin';
 import Title from 'antd/lib/typography/Title';
 import Text from 'antd/lib/typography/Text';
 import Icon from '@ant-design/icons';
@@ -20,6 +21,7 @@ import {
 import CVATSigningInput, { CVATInputType } from 'components/signing-common/cvat-signing-input';
 import { CombinedState } from 'reducers';
 import { useAuthQuery, usePlugins } from 'utils/hooks';
+import appConfig from 'config';
 
 export interface LoginData {
     credential: string;
@@ -39,6 +41,7 @@ function LoginFormComponent(props: Props): JSX.Element {
         fetching, onSubmit, renderResetPassword, renderRegistrationComponent, renderBasicLoginComponent,
     } = props;
 
+    // All hooks must be called unconditionally before any early returns.
     const authQuery = useAuthQuery();
     const [form] = Form.useForm();
     const [credential, setCredential] = useState('');
@@ -47,6 +50,26 @@ function LoginFormComponent(props: Props): JSX.Element {
         props,
         { credential },
     );
+
+    // In IAP mode the server omits /api/auth/login from the OpenAPI schema so
+    // renderBasicLoginComponent is false. Show an IAP-specific message instead
+    // of an empty form. In production the user will never reach this page
+    // because IAPAuthentication authenticates them on the first API call.
+    const isIAPMode = appConfig.IS_IAP_AUTH || (!renderBasicLoginComponent && !pluginsToRender.length);
+    if (isIAPMode) {
+        return (
+            <div className='cvat-login-form-wrapper'>
+                <Col>
+                    <Title level={2}>Signing in</Title>
+                </Col>
+                <Spin tip='Authenticating via your organization&apos;s Identity-Aware Proxy...' />
+                <Text type='secondary'>
+                    Authentication is managed by your organization.
+                    You will be redirected automatically.
+                </Text>
+            </div>
+        );
+    }
 
     let resetSearch = authQuery ? new URLSearchParams(authQuery).toString() : '';
     if (credential.includes('@')) {

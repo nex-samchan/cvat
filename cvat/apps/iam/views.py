@@ -13,13 +13,15 @@ from dj_rest_auth.registration.views import RegisterView
 from dj_rest_auth.utils import jwt_encode
 from dj_rest_auth.views import LoginView
 from django.conf import settings
+from django.contrib.auth import login as auth_login
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.views.decorators.http import etag as django_etag
 from drf_spectacular.contrib.rest_auth import get_token_serializer_class
-from drf_spectacular.utils import extend_schema
-from rest_framework import views
-from rest_framework.exceptions import ValidationError
+from drf_spectacular.utils import extend_schema, OpenApiTypes
+from rest_framework import status, views
+from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
 
 from cvat.apps.engine.log import ServerLogManager
 
@@ -110,6 +112,64 @@ class RegisterViewEx(RegisterView):
             None,
         )
         return user
+
+
+@extend_schema(exclude=True)
+class IAPLoginView(views.APIView):
+    """
+    Login endpoint for GCP IAP mode.
+
+    Verifies the X-Goog-Iap-Jwt-Assertion JWT, finds or creates the
+    corresponding Django user, and establishes a session so the frontend
+    can continue to use session-based authentication for subsequent requests.
+
+    Accepts GET or POST — no credentials are required; IAP has already
+    authenticated the user before the request reaches this endpoint.
+
+    Excluded from the OpenAPI schema so the frontend detects
+    isBasicLoginEnabled=false and hides the username/password form.
+    """
+
+    permission_classes = [AllowAny]
+    authentication_classes = []  # skip DRF auth; we do it manually below
+
+    def get(self, request, *args, **kwargs):
+        return self._login(request)
+
+    def post(self, request, *args, **kwargs):
+        return self._login(request)
+
+    def _login(self, request):
+        from .authentication import IAPAuthentication
+
+        token = request.META.get(IAPAuthentication.IAP_HEADER)
+        if not token:
+            return Response(
+                {"detail": "Missing IAP assertion header."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        try:
+            claims = IAPAuthentication._verify_iap_jwt(token)
+        except AuthenticationFailed as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = IAPAuthentication._get_or_create_user(claims.get("email", ""))
+        auth_login(
+            request._request,
+            user,
+            backend="cvat.apps.iam.authentication.IAPBackend",
+        )
+
+        return Response(
+            {
+                "username": user.username,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+            },
+            status=status.HTTP_200_OK,
+        )
 
 
 def _etag(etag_func):

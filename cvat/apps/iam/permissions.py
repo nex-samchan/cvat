@@ -87,12 +87,21 @@ def get_membership(request, organization):
 IamContext: TypeAlias = dict[str, Any]
 
 
+def _get_email_domain(email: str | None) -> str | None:
+    if email and "@" in email:
+        return email.split("@")[-1]
+    return None
+
+
 def build_iam_context(
     request, organization: Organization | None, membership: Membership | None
 ) -> IamContext:
+    email: str | None = getattr(request.user, "email", None) or None
     return {
         "user_id": request.user.id,
         "group_name": request.iam_context["privilege"],
+        "user_email": email,
+        "user_email_domain": _get_email_domain(email),
         "org_id": getattr(organization, "id", None),
         "org_slug": getattr(organization, "slug", None),
         "org_owner_id": organization.owner_id if organization else None,
@@ -111,6 +120,8 @@ class OpenPolicyAgentPermission(metaclass=ABCMeta):
     url: str
     user_id: int
     group_name: str | None
+    user_email: str | None
+    user_email_domain: str | None
     org_id: int | None
     org_owner_id: int | None
     org_role: str | None
@@ -189,6 +200,8 @@ class OpenPolicyAgentPermission(metaclass=ABCMeta):
                 "user": {
                     "id": self.user_id,
                     "privilege": self.group_name,
+                    "email": getattr(self, "user_email", None),
+                    "email_domain": getattr(self, "user_email_domain", None),
                 },
                 "organization": (
                     {

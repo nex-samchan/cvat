@@ -98,6 +98,7 @@ services:
         https_proxy:
         no_proxy:
         socks_proxy:
+        REACT_APP_IAM_TYPE:
       dockerfile: Dockerfile.ui
 
   cvat_clickhouse:

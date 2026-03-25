@@ -114,3 +114,41 @@ make_organization_filter(organization_fields) := qobject if {
     count(organization_fields) > 0
     qobject := array.concat(["|"], [{f: input.auth.organization.id} | some f in organization_fields])
 }
+
+# ---------------------------------------------------------------------------
+# Email-based helpers (populated when IAM_TYPE=IAP; null otherwise)
+# ---------------------------------------------------------------------------
+
+# The authenticated user's full email address, e.g. "alice@example.com".
+user_email := input.auth.user.email
+
+# The domain part of the authenticated user's email, e.g. "example.com".
+user_email_domain := input.auth.user.email_domain
+
+# True when the user's email exactly matches the given address.
+# Usage: utils.user_email_is("alice@example.com")
+user_email_is(addr) if {
+    input.auth.user.email == addr
+}
+
+# True when the user's email domain matches the given domain.
+# Usage: utils.user_domain_is("example.com")
+user_domain_is(domain) if {
+    input.auth.user.email_domain == domain
+}
+
+# Example usage in a resource .rego file:
+#
+#   import data.utils
+#
+#   # Allow task creation only for users on the trusted domain
+#   allow if {
+#       input.scope == utils.CREATE
+#       utils.user_domain_is("trusted.example.com")
+#   }
+#
+#   # Allow a specific user to view all tasks regardless of privilege
+#   allow if {
+#       input.scope == utils.VIEW
+#       utils.user_email_is("analyst@example.com")
+#   }

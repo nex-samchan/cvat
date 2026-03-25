@@ -121,6 +121,40 @@ INSTALLED_APPS = [
 
 SITE_ID = 1
 
+# ---------------------------------------------------------------------------
+# IAM settings (defined early because REST_FRAMEWORK block references IAM_TYPE)
+# ---------------------------------------------------------------------------
+IAM_TYPE = os.environ.get("IAM_TYPE", "BASIC")  # "BASIC", "LDAP", or "IAP"
+IAM_BASE_EXCEPTION = None  # a class which will be used by IAM to report errors
+IAM_DEFAULT_ROLE = "user"
+
+IAM_ADMIN_ROLE = "admin"
+# Index in the list below corresponds to the priority (0 has highest priority)
+IAM_ROLES = [IAM_ADMIN_ROLE, "user", "worker"]
+IAM_OPA_HOST = "http://opa:8181"
+IAM_OPA_DATA_URL = f"{IAM_OPA_HOST}/v1/data"
+LOGIN_URL = "rest_login"
+LOGIN_REDIRECT_URL = "/"
+
+# GCP IAP authentication settings (only used when IAM_TYPE == "IAP")
+# Full audience string for JWT verification, e.g.:
+#   /projects/PROJECT_NUMBER/global/backendServices/BACKEND_SERVICE_ID
+IAM_IAP_AUDIENCE = os.environ.get("IAM_IAP_AUDIENCE", "")
+
+# Email-to-role mapping, evaluated top-to-bottom.
+# Each entry is a (pattern, role) tuple. Supported patterns:
+#   "user@example.com"   — exact email match
+#   "*@example.com"      — all users on a domain
+#   "*"                  — catch-all fallback
+# Role must be one of IAM_ROLES. Falls back to IAM_DEFAULT_ROLE if no match.
+# Override this list in production.py or a local settings file.
+IAM_IAP_ROLE_MAP: list[tuple[str, str]] = [
+    # ("admin@example.com", "admin"),
+    # ("*@example.com", "user"),
+    # ("*", "worker"),
+]
+# ---------------------------------------------------------------------------
+
 REST_FRAMEWORK = {
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
@@ -133,12 +167,21 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
         "cvat.apps.access_tokens.permissions.PolicyEnforcer",
     ],
-    "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
-        "cvat.apps.access_tokens.authentication.AccessTokenAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
-        "cvat.apps.iam.authentication.BasicAuthenticationEx",
-    ],
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        [
+            # IAP mode: JWT-based auth only; no username/password or token auth.
+            "cvat.apps.iam.authentication.IAPAuthentication",
+            "rest_framework.authentication.SessionAuthentication",
+            "cvat.apps.access_tokens.authentication.AccessTokenAuthentication",
+        ]
+        if IAM_TYPE == "IAP"
+        else [
+            "rest_framework.authentication.TokenAuthentication",
+            "cvat.apps.access_tokens.authentication.AccessTokenAuthentication",
+            "rest_framework.authentication.SessionAuthentication",
+            "cvat.apps.iam.authentication.BasicAuthenticationEx",
+        ]
+    ),
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.AcceptHeaderVersioning",
     "ALLOWED_VERSIONS": ("2.0"),
     "DEFAULT_VERSION": "2.0",
@@ -220,19 +263,6 @@ TEMPLATES = [
     },
 ]
 
-# IAM settings
-IAM_TYPE = "BASIC"
-IAM_BASE_EXCEPTION = None  # a class which will be used by IAM to report errors
-IAM_DEFAULT_ROLE = "user"
-
-IAM_ADMIN_ROLE = "admin"
-# Index in the list below corresponds to the priority (0 has highest priority)
-IAM_ROLES = [IAM_ADMIN_ROLE, "user", "worker"]
-IAM_OPA_HOST = "http://opa:8181"
-IAM_OPA_DATA_URL = f"{IAM_OPA_HOST}/v1/data"
-LOGIN_URL = "rest_login"
-LOGIN_REDIRECT_URL = "/"
-
 OBJECTS_NOT_RELATED_WITH_ORG = [
     "user",
     "lambda_function",
@@ -247,10 +277,16 @@ ORG_INVITATION_CONFIRM = "No"
 ORG_INVITATION_EXPIRY_DAYS = 7
 
 
-AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",
-    "allauth.account.auth_backends.AuthenticationBackend",
-]
+if IAM_TYPE == "IAP":
+    AUTHENTICATION_BACKENDS = [
+        "cvat.apps.iam.authentication.IAPBackend",
+        "django.contrib.auth.backends.ModelBackend",
+    ]
+else:
+    AUTHENTICATION_BACKENDS = [
+        "django.contrib.auth.backends.ModelBackend",
+        "allauth.account.auth_backends.AuthenticationBackend",
+    ]
 
 # https://github.com/pennersr/django-allauth
 ACCOUNT_EMAIL_VERIFICATION = "none"

@@ -5,6 +5,10 @@
 
 import React from 'react';
 
+// True when the backend is configured for GCP Identity-Aware Proxy authentication.
+// Set the REACT_APP_IAM_TYPE=IAP build-time env var to enable this mode.
+const IS_IAP_AUTH = process.env.REACT_APP_IAM_TYPE === 'IAP';
+
 const NO_BREAK_SPACE = '\u00a0';
 const UNDEFINED_ATTRIBUTE_VALUE = '__undefined__';
 const CHANGELOG_URL = 'https://github.com/cvat-ai/cvat/blob/develop/CHANGELOG.md';
@@ -157,6 +161,7 @@ const PAID_PLACEHOLDER_CONFIG = {
 };
 
 export default {
+    IS_IAP_AUTH,
     UNDEFINED_ATTRIBUTE_VALUE,
     NO_BREAK_SPACE,
     CHANGELOG_URL,
