@@ -103,7 +103,7 @@ services:
       # Role mapping is structured config — set IAM_IAP_ROLE_MAP in
       # cvat/settings/production.py instead of as an env var.
       IAM_TYPE: IAP
-      # IAM_IAP_AUDIENCE: /projects/PROJECT_NUMBER/global/backendServices/BACKEND_SERVICE_ID
+      IAM_IAP_AUDIENCE: ${IAM_IAP_AUDIENCE:-}
     command: init run server
     labels:
       traefik.enable: "true"

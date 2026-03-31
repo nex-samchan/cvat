@@ -1,0 +1,30 @@
+substitutions:
+  _IMAGE_UI: ""
+  _IMAGE_SERVER: ""
+  _REACT_APP_IAM_TYPE: "IAP"
+
+options:
+  machineType: E2_HIGHCPU_8
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-ui
+    args:
+      - build
+      - --file=Dockerfile.ui
+      - --build-arg=REACT_APP_IAM_TYPE=${_REACT_APP_IAM_TYPE}
+      - --tag=${_IMAGE_UI}
+      - .
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-server
+    args:
+      - build
+      - --file=Dockerfile
+      - --tag=${_IMAGE_SERVER}
+      - .
+
+images:
+  - "${_IMAGE_UI}"
+  - "${_IMAGE_SERVER}"
